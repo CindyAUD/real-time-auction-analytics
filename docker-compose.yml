@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: redpanda
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 1G
+      - --overprovisioned
+      - --node-id 0
+      - --check=false
+      - --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+    ports:
+      - "9092:9092"      # Kafka API (inside)
+      - "19092:19092"    # Kafka API (external)
+      - "9644:9644"      # Admin API / metrics
+      - "8081:8081"      # Schema Registry (optional for now)
+      - "8082:8082"      # HTTP Proxy
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    networks:
+      - pipeline_net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - pipeline_net
+    depends_on:
+      - redpanda
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - pipeline_net
+    depends_on:
+      - prometheus
+
+networks:
+  pipeline_net:
+    driver: bridge
+
+volumes:
+  redpanda-data:
+  grafana-data:
