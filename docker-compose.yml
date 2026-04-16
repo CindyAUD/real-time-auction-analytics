@@ -13,18 +13,42 @@ services:
       - --check=false
       - --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
       - --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
-      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
-      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
     ports:
-      - "9092:9092"      # Kafka API (inside)
-      - "19092:19092"    # Kafka API (external)
-      - "9644:9644"      # Admin API / metrics
-      - "8081:8081"      # Schema Registry (optional for now)
-      - "8082:8082"      # HTTP Proxy
+      - "9092:9092"
+      - "19092:19092"
+      - "9644:9644"
     volumes:
       - redpanda-data:/var/lib/redpanda/data
     networks:
       - pipeline_net
+
+  processor:
+    build: ./faust_app
+    container_name: auction-processor
+    depends_on:
+      - redpanda
+    environment:
+      - KAFKA_BROKER=redpanda:9092
+      - SINK_BATCH_SIZE=50
+    volumes:
+      - parquet-data:/data/processed
+    networks:
+      - pipeline_net
+    restart: unless-stopped
+    ports:
+      - "8001:8001"        # Prometheus metrics
+  api:
+    build: ./api
+    container_name: auction-api
+    depends_on:
+      - processor   # wait for Parquet files to exist
+    ports:
+      - "8000:8000" # API server
+    volumes:
+      - parquet-data:/data/processed:ro   # read-only access to Parquet
+    networks:
+      - pipeline_net
+    restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
@@ -33,12 +57,8 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
     networks:
       - pipeline_net
-    depends_on:
-      - redpanda
 
   grafana:
     image: grafana/grafana:latest
@@ -49,8 +69,6 @@ services:
       - grafana-data:/var/lib/grafana
     networks:
       - pipeline_net
-    depends_on:
-      - prometheus
 
 networks:
   pipeline_net:
@@ -59,3 +77,4 @@ networks:
 volumes:
   redpanda-data:
   grafana-data:
+  parquet-data:
