@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:latest
@@ -67,8 +65,42 @@ services:
       - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/auction-pipeline.json
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     networks:
       - pipeline_net
+  dashboard:
+    build: ./dashboard
+    container_name: auction-dashboard
+    depends_on:
+      - api
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    networks:
+      - pipeline_net
+    restart: unless-stopped
+  loadtest:
+    build: ./loadtest
+    container_name: auction-loadtest
+    depends_on:
+      - api
+      - redpanda
+    environment:
+      - KAFKA_BROKER=redpanda:19092
+      - API_HOST=http://api:8000
+    networks:
+      - pipeline_net
+    ports:
+      - "8089:8089"
+    # Run load test with different configurations:
+    # API-only test (headless): docker compose run --rm loadtest locust -f locustfile.py --host=http://api:8000 -u 50 -r 5 --headless
+    # Full pipeline test (headless): docker compose run --rm loadtest locust -f locustfile.py --host=http://api:8000 -u 200 -r 20 --headless
+    # With web UI: docker compose run --rm -p 8089:8089 loadtest locust -f locustfile.py --host=http://api:8000
+    # Extended test: docker compose run --rm loadtest locust -f locustfile.py --host=http://api:8000 -u 500 -r 50 -t 300s --headless
 
 networks:
   pipeline_net:

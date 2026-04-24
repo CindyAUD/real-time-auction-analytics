@@ -139,3 +139,13 @@ Typed Pydantic response models
 Simple in-memory caching (TTL) for hot queries
 Health check endpoint
 Proper error handling
+
+# **Phase 5 Plan**
+will create:
+
+A new dashboard/ service using Streamlit
+Multiple pages/tabs: Overview, Top Items, Revenue Trends, Conversion Funnel, Recent Events
+Auto-refresh every 5 seconds
+Clean charts using Plotly
+Connection to your existing FastAPI (http://api:8000)
+Integration into docker-compose.yml

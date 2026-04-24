@@ -1,0 +1,5 @@
+locust
+faker
+pydantic
+requests
+confluent-kafka
